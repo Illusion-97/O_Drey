@@ -1,6 +1,7 @@
 package fr.dawankama.o_drey;
 
 import fr.dawankama.o_drey.discord.events.DiscordEvent;
+import fr.dawankama.o_drey.discord.events.TjEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -14,8 +15,8 @@ public class ODreyApplication {
         SpringApplication.run(ODreyApplication.class, args);
     }
 
-    @EventListener(DiscordEvent.class)
-    public void reactToEvent(DiscordEvent discordEvent) {
+    @EventListener(TjEvent.class)
+    public void reactToTjEvent(DiscordEvent discordEvent) {
         discordEvent.getEvent().reply("Hello").queue();
     }
 
