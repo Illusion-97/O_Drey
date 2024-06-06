@@ -1,2 +1,5 @@
-package fr.dawankama.o_drey.discord.models;public enum SlashCommand {
+package fr.dawankama.o_drey.discord.models;
+
+public enum SlashCommand {
+    TJ
 }
