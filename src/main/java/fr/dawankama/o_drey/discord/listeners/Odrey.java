@@ -9,27 +9,32 @@ import fr.dawankama.o_drey.discord.models.SlashCommand;
 import fr.dawankama.o_drey.management.gifs.GifService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.ChunkingFilter;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Service;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,11 +44,14 @@ import java.util.Objects;
 
 @Service
 public class Odrey extends ListenerAdapter {
+
+    private final SimpMessagingTemplate messagingTemplate;
     private final JDA jda;
     private final ApplicationEventPublisher publisher;
     private final ThreadPoolTaskScheduler scheduler;
     private Role banned;
-    public Odrey(@Value("${discord.token}") String DISCORD_KEY, ApplicationEventPublisher publisher, ThreadPoolTaskScheduler scheduler) {
+    public Odrey(SimpMessagingTemplate messagingTemplate, @Value("${discord.token}") String DISCORD_KEY, ApplicationEventPublisher publisher, ThreadPoolTaskScheduler scheduler) {
+        this.messagingTemplate = messagingTemplate;
         this.publisher = publisher;
         this.jda = JDABuilder.createDefault(DISCORD_KEY)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
@@ -100,7 +108,7 @@ public class Odrey extends ListenerAdapter {
         publisher.publishEvent(event);
         Member target = event.getMember();
         Message message = event.getMessage();
-        if(Objects.requireNonNull(target).getRoles().stream().anyMatch(role -> role.getName().equals(banned.getName())))
+        if(target != null && !target.getUser().isBot() && target.getRoles().stream().anyMatch(role -> role.getName().equals(banned.getName())))
             message.delete().queue();
         if(message.getContentRaw().contains("n word")) {
             message.reply("https://tenor.com/view/4k-caught-gif-20353888")
@@ -119,6 +127,28 @@ public class Odrey extends ListenerAdapter {
                 .filter(list -> !list.isEmpty())
                 .findFirst()
                 .map(list -> list.get(0).getUser().openPrivateChannel())
-                .ifPresent(action -> action.queue(privateChannel -> privateChannel.sendMessage("hello").queue()));
+                .ifPresent(action -> action.queue(privateChannel ->
+                        privateChannel.sendMessageEmbeds(new EmbedBuilder().setDescription("Tentative de connexion à votre compte sur DawAnkama").build())
+                                .setActionRow(
+                                        Button.success("OK", "Valider"),
+                                        Button.danger("KO", "Bloquer")
+                                )
+                                .queue(message -> scheduler.schedule(
+                                        () -> message.delete().queue(),
+                                        LocalDateTime.now().plusMinutes(1).atZone(ZoneId.systemDefault()).toInstant()))));
+    }
+
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        String destination = "/login/"+event.getUser().getName();
+        event.reply("Décision prise en compte !").queue(r ->
+                {
+                    event.getMessage().delete().queue();
+                    messagingTemplate.convertAndSend(
+                            destination,
+                            Objects.equals(event.getButton().getId(), "OK")
+                    );
+                }
+        );
     }
 }
