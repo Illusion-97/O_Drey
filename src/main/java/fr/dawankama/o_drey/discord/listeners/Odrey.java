@@ -12,6 +12,7 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -27,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -36,10 +38,10 @@ import java.util.Objects;
 @Service
 public class Odrey extends ListenerAdapter {
     private final JDA jda;
-    private final GifService gifService;
     private final ApplicationEventPublisher publisher;
-    public Odrey(@Value("${discord.token}") String DISCORD_KEY, GifService gifService, ApplicationEventPublisher publisher) {
-        this.gifService = gifService;
+    private final ThreadPoolTaskScheduler scheduler;
+    private Role banned;
+    public Odrey(@Value("${discord.token}") String DISCORD_KEY, ApplicationEventPublisher publisher, ThreadPoolTaskScheduler scheduler) {
         this.publisher = publisher;
         this.jda = JDABuilder.createDefault(DISCORD_KEY)
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
@@ -53,11 +55,16 @@ public class Odrey extends ListenerAdapter {
                 .setActivity(Activity.playing("Wakfu"))
                 .addEventListeners(this)
                 .build();
+        this.scheduler = scheduler;
     }
 
     @Override
     public void onGuildReady(@NotNull GuildReadyEvent event) {
         Guild guild = event.getGuild();
+        guild.getRolesByName("BANNED",false).stream().findAny().ifPresentOrElse(
+                role -> banned = role,
+                () -> guild.createRole().setName("BANNED").queue(role -> banned = role)
+        );
         guild.updateCommands().addCommands(mesCommandes.stream().map(MySlashCommand::getData).toList()).queue();
     }
 
@@ -88,7 +95,11 @@ public class Odrey extends ListenerAdapter {
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
-        if (!event.getAuthor().isBot())
-            gifService.findGifUrl(event.getMessage().getContentRaw()).ifPresent(url -> event.getChannel().sendMessage(url).queue());
+        publisher.publishEvent(event);
+        if(Objects.requireNonNull(event.getMember()).getRoles().stream().anyMatch(role -> role.getName().equals(banned.getName())))
+            event.getMessage().delete().queue();
+        if(event.getMessage().getContentRaw().contains("n word"))
+            event.getChannel().sendMessage("https://tenor.com/view/4k-caught-gif-20353888")
+                    .queue(v -> event.getGuild().addRoleToMember(event.getMember(), banned).queue());
     }
 }
