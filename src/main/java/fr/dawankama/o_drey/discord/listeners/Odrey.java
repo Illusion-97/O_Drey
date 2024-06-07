@@ -1,6 +1,7 @@
 package fr.dawankama.o_drey.discord.listeners;
 
 import fr.dawankama.o_drey.discord.events.DiscordEvent;
+import fr.dawankama.o_drey.discord.events.LoginEvent;
 import fr.dawankama.o_drey.discord.events.OtherEvent;
 import fr.dawankama.o_drey.discord.events.TjEvent;
 import fr.dawankama.o_drey.discord.models.MySlashCommand;
@@ -10,9 +11,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
-import net.dv8tion.jda.api.entities.Activity;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.*;
+import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.events.guild.GuildReadyEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -31,6 +31,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -94,12 +96,29 @@ public class Odrey extends ListenerAdapter {
     }
 
     @Override
-    public void onMessageReceived(MessageReceivedEvent event) {
+    public void onMessageReceived(@NotNull MessageReceivedEvent event) {
         publisher.publishEvent(event);
-        if(Objects.requireNonNull(event.getMember()).getRoles().stream().anyMatch(role -> role.getName().equals(banned.getName())))
-            event.getMessage().delete().queue();
-        if(event.getMessage().getContentRaw().contains("n word"))
-            event.getChannel().sendMessage("https://tenor.com/view/4k-caught-gif-20353888")
-                    .queue(v -> event.getGuild().addRoleToMember(event.getMember(), banned).queue());
+        Member target = event.getMember();
+        Message message = event.getMessage();
+        if(Objects.requireNonNull(target).getRoles().stream().anyMatch(role -> role.getName().equals(banned.getName())))
+            message.delete().queue();
+        if(message.getContentRaw().contains("n word")) {
+            message.reply("https://tenor.com/view/4k-caught-gif-20353888")
+                    .queue(v -> event.getGuild().addRoleToMember(target, banned).queue(r -> scheduler.schedule(
+                            () -> event.getGuild().removeRoleFromMember(target, banned).queue(f -> message.reply("https://tenor.com/view/out-of-jail-jail-prison-out-of-prison-im-out-gif-12660099").queue()
+                            ),
+                            LocalDateTime.now().plusSeconds(30).atZone(ZoneId.systemDefault()).toInstant()
+                    )));
+        }
+    }
+
+    @EventListener(LoginEvent.class)
+    public void onLoginEvent(LoginEvent event) {
+        jda.getGuilds().stream()
+                .map(guild -> guild.getMembersByName(event.getUsername(), true))
+                .filter(list -> !list.isEmpty())
+                .findFirst()
+                .map(list -> list.get(0).getUser().openPrivateChannel())
+                .ifPresent(action -> action.queue(privateChannel -> privateChannel.sendMessage("hello").queue()));
     }
 }
