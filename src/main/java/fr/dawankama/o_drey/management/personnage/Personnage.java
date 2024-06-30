@@ -24,5 +24,4 @@ public class Personnage {
     private short classe;
 
     private int genre;
-
 }

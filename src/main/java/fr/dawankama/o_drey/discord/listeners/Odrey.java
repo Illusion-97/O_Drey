@@ -7,6 +7,7 @@ import fr.dawankama.o_drey.discord.events.TjEvent;
 import fr.dawankama.o_drey.discord.models.MySlashCommand;
 import fr.dawankama.o_drey.discord.models.SlashCommand;
 import fr.dawankama.o_drey.management.gifs.GifService;
+import fr.dawankama.o_drey.management.user.AuthResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -140,13 +141,14 @@ public class Odrey extends ListenerAdapter {
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
-        String destination = "/login/"+event.getUser().getName();
+        User user = event.getUser();
+        String destination = "/login/"+ user.getName();
         event.reply("Décision prise en compte !").queue(r ->
                 {
                     event.getMessage().delete().queue();
                     messagingTemplate.convertAndSend(
                             destination,
-                            Objects.equals(event.getButton().getId(), "OK")
+                            new AuthResponse(user.getId(), user.getName(), "TOKEN")
                     );
                 }
         );
