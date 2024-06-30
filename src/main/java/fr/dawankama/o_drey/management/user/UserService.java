@@ -4,6 +4,7 @@ import fr.dawankama.o_drey.discord.events.LoginEvent;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
@@ -18,10 +19,16 @@ public class UserService {
     @EventListener(MessageReceivedEvent.class)
     public void onMessageReceived(MessageReceivedEvent event) {
         if (!event.getAuthor().isBot()) {
-            User user = repository.findById(event.getAuthor().getId())
-                    .orElseGet(() -> repository.save(new User(event.getAuthor().getId())));
-            user.setExp(user.getExp() + 1);
-            repository.save(user);
+            User user = getUser(event.getAuthor());
+            repository.save(user.exp(user.exp() + 1));
         }
     }
+
+    @NotNull
+    private User getUser(net.dv8tion.jda.api.entities.User author) {
+        return repository.findById(author.getId())
+                .orElseGet(() -> repository.save(new User(author.getId()).name(author.getName())));
+    }
+
+
 }

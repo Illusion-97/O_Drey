@@ -5,8 +5,8 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import org.springframework.context.ApplicationEvent;
 
 
+@Getter
 public abstract class DiscordEvent extends ApplicationEvent {
-    @Getter
     private final SlashCommandInteractionEvent event;
     protected DiscordEvent(Object source, SlashCommandInteractionEvent event) {
         super(source);
